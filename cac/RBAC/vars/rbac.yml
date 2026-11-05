@@ -1,32 +1,63 @@
 ---
-# Organizações a garantir na plataforma
+# Organizações, times de domínio e papéis por organização.
+# Times criados = {domínio}-{papel} (ex.: BD-Administrador) em cada org.
+# Recursos no escopo: CREDENTIAL, INVENTORY, PROJECT, TEMPLATES.
 aap_organizations:
-  - name: Seguranca
-    description: Organização de Segurança
-  - name: Automacao
-    description: Organização de Automação
-  - name: Operacao
-    description: Organização de Operação
+  - name: CESTI
+    description: Organização CESTI
+    teams:
+      - BD
+      - Esteira
+      - Multiplataforma
+      - Mainframe
+      - Armazenamento
+    roles:
+      - Administrador
+      - Suporte
+      - Desenvolvedor
+      - Operador
+
+  - name: PRODUÇÃO
+    description: Organização de Produção
+    teams:
+      - BD
+      - Multiplataforma
+      - Mainframe
+      - Observabilidade
+      - Atendimento
+    roles:
+      - Suporte
+      - Operador
+      - Desenvolvedor
+
+  - name: REDES
+    description: Organização de Redes
+    teams:
+      - DNS
+      - ACL
+      - Firewall
+      - Balancer
+    roles:
+      - Suporte
+      - Operador
+      - Desenvolvedor
 
 # Perfis RBAC (Role Definitions customizadas)
 # Cada role_definition no AAP 2.7 aplica-se a um único content_type.
 # Os perfis abaixo usam shared.organization para escopo organizacional.
 aap_role_definitions:
-  - name: Admin
+  - name: Administrador
     description: >-
-      Perfil Admin — acesso completo à organização e a todos os objetos
-      internos (equivalente a Organization Admin).
+      Acesso total aos recursos da plataforma (credenciais, inventário,
+      projetos e templates).
     content_type: shared.organization
     permissions:
       - shared.view_organization
-      - shared.change_organization
-      - shared.delete_organization
-      - shared.member_organization
-      - shared.view_team
-      - shared.change_team
-      - shared.delete_team
-      - shared.member_team
-      - shared.add_team
+      - awx.view_credential
+      - awx.change_credential
+      - awx.delete_credential
+      - awx.add_credential
+      - awx.use_credential
       - awx.view_inventory
       - awx.change_inventory
       - awx.delete_inventory
@@ -51,67 +82,101 @@ aap_role_definitions:
       - awx.add_workflowjobtemplate
       - awx.execute_workflowjobtemplate
       - awx.approve_workflowjobtemplate
-      - awx.view_credential
-      - awx.change_credential
-      - awx.delete_credential
-      - awx.add_credential
-      - awx.use_credential
-      - awx.view_executionenvironment
-      - awx.change_executionenvironment
-      - awx.delete_executionenvironment
-      - awx.add_executionenvironment
-      - awx.use_executionenvironment
-      - awx.view_notificationtemplate
-      - awx.change_notificationtemplate
-      - awx.delete_notificationtemplate
-      - awx.add_notificationtemplate
       - awx.view_job
       - awx.delete_job
       - awx.view_workflowjob
       - awx.delete_workflowjob
 
-  - name: Operador
+  - name: Suporte
     description: >-
-      Perfil Operador — leitura e execução de templates/workflows e uso
-      dos recursos necessários à execução em todos os módulos do Controller.
+      Acesso de leitura e execução, para suporte a nível funcional à
+      plataforma (credenciais, inventário, projetos e templates).
     content_type: shared.organization
     permissions:
       - shared.view_organization
+      - awx.view_credential
+      - awx.use_credential
+      - awx.view_inventory
+      - awx.use_inventory
+      - awx.view_project
+      - awx.use_project
       - awx.view_jobtemplate
       - awx.execute_jobtemplate
       - awx.view_workflowjobtemplate
       - awx.execute_workflowjobtemplate
       - awx.view_job
       - awx.view_workflowjob
-      - awx.view_inventory
-      - awx.use_inventory
-      - awx.view_project
-      - awx.use_project
-      - awx.view_credential
-      - awx.use_credential
-      - awx.view_executionenvironment
-      - awx.use_executionenvironment
 
-  - name: Desenvolvedor
+  - name: Operador
     description: >-
-      Perfil Desenvolvedor — somente leitura de jobs e templates
-      (job templates, workflow templates e histórico de execuções).
+      Acesso de criação, leitura, atualização e execução — destinado a
+      contas de serviço (credenciais, inventário, projetos e templates).
     content_type: shared.organization
     permissions:
       - shared.view_organization
+      - awx.view_credential
+      - awx.change_credential
+      - awx.add_credential
+      - awx.use_credential
+      - awx.view_inventory
+      - awx.change_inventory
+      - awx.add_inventory
+      - awx.use_inventory
+      - awx.update_inventory
+      - awx.view_project
+      - awx.change_project
+      - awx.add_project
+      - awx.use_project
+      - awx.update_project
+      - awx.view_jobtemplate
+      - awx.change_jobtemplate
+      - awx.add_jobtemplate
+      - awx.execute_jobtemplate
+      - awx.view_workflowjobtemplate
+      - awx.change_workflowjobtemplate
+      - awx.add_workflowjobtemplate
+      - awx.execute_workflowjobtemplate
+      - awx.view_job
+      - awx.view_workflowjob
+
+  - name: Auditor
+    description: >-
+      Acesso somente de leitura, para função de auditoria (credenciais,
+      inventário, projetos e templates).
+    content_type: shared.organization
+    permissions:
+      - shared.view_organization
+      - awx.view_credential
+      - awx.view_inventory
+      - awx.view_project
       - awx.view_jobtemplate
       - awx.view_workflowjobtemplate
       - awx.view_job
       - awx.view_workflowjob
 
-# Times (um por perfil em cada organização) que recebem o role correspondente
-aap_teams:
-  - name: Admin
-    description: Time com perfil Admin
-    role_definition: Admin
-  - name: Operador
-    description: Time com perfil Operador
-    role_definition: Operador
   - name: Desenvolvedor
-    description: Time com perfil Desenvolvedor
-    role_definition: Desenvolvedor
+    description: >-
+      Desenvolvedor de automação — leitura e execução em credenciais e
+      inventário; leitura, execução e atualização em projetos; criação,
+      leitura, atualização e execução em templates.
+    content_type: shared.organization
+    permissions:
+      - shared.view_organization
+      - awx.view_credential
+      - awx.use_credential
+      - awx.view_inventory
+      - awx.use_inventory
+      - awx.view_project
+      - awx.change_project
+      - awx.use_project
+      - awx.update_project
+      - awx.view_jobtemplate
+      - awx.change_jobtemplate
+      - awx.add_jobtemplate
+      - awx.execute_jobtemplate
+      - awx.view_workflowjobtemplate
+      - awx.change_workflowjobtemplate
+      - awx.add_workflowjobtemplate
+      - awx.execute_workflowjobtemplate
+      - awx.view_job
+      - awx.view_workflowjob
