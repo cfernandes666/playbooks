@@ -53,6 +53,25 @@
           Defina aap_hostname e aap_token em vars/aap_auth.yml
           (veja vars/aap_auth.yml.example) ou via AAP_HOSTNAME / AAP_TOKEN.
 
+    - name: Expandir matriz de times (organização × domínio × papel)
+      ansible.builtin.set_fact:
+        aap_team_matrix: >-
+          {%- set ns = namespace(teams=[]) -%}
+          {%- for org in aap_organizations -%}
+            {%- for team in org.teams -%}
+              {%- for role in org.roles -%}
+                {%- set _ = ns.teams.append({
+                      'organization': org.name,
+                      'name': team ~ '-' ~ role,
+                      'domain': team,
+                      'role_definition': role,
+                      'description': 'Time ' ~ team ~ ' com perfil ' ~ role
+                    }) -%}
+              {%- endfor -%}
+            {%- endfor -%}
+          {%- endfor -%}
+          {{ ns.teams }}
+
   tasks:
     - name: Garantir organizações
       ansible.platform.organization:
@@ -74,28 +93,28 @@
       loop_control:
         label: "{{ item.name }}"
 
-    - name: Garantir times por organização e perfil
+    - name: Garantir times por organização, domínio e perfil
       ansible.platform.team:
-        name: "{{ item.1.name }}"
-        description: "{{ item.1.description }} ({{ item.0.name }})"
-        organization: "{{ item.0.name }}"
+        name: "{{ item.name }}"
+        description: "{{ item.description }} ({{ item.organization }})"
+        organization: "{{ item.organization }}"
         state: present
-      loop: "{{ aap_organizations | product(aap_teams) | list }}"
+      loop: "{{ aap_team_matrix }}"
       loop_control:
-        label: "{{ item.0.name }}/{{ item.1.name }}"
+        label: "{{ item.organization }}/{{ item.name }}"
       register: team_results
 
     - name: Atribuir perfis RBAC aos times em cada organização
       ansible.platform.role_team_assignment:
-        role_definition: "{{ item.item.1.role_definition }}"
+        role_definition: "{{ item.item.role_definition }}"
         team: "{{ item.team.id }}"
         assignment_objects:
-          - name: "{{ item.item.0.name }}"
+          - name: "{{ item.item.organization }}"
             type: organizations
         state: present
       loop: "{{ team_results.results }}"
       loop_control:
-        label: "{{ item.item.0.name }}/{{ item.item.1.name }} → {{ item.item.1.role_definition }}"
+        label: "{{ item.item.organization }}/{{ item.item.name }} → {{ item.item.role_definition }}"
       when:
         - item.team is defined
         - item.team.id is defined
@@ -107,8 +126,9 @@
           - "Perfis RBAC: {{ aap_role_definitions | map(attribute='name') | list }}"
           - "Times criados/atualizados: {{ team_results.results | length }}"
           - >-
-            Adicione usuários aos times Admin, Operador ou Desenvolvedor
-            de cada organização para conceder o perfil correspondente.
+            Adicione usuários aos times {domínio}-{papel}
+            (ex.: BD-Administrador, DNS-Suporte) de cada organização
+            para conceder o perfil correspondente.
           - >-
             Acesso platform-wide (superusuário) continua sendo o papel
             gerenciado 'Platform Admin', atribuído diretamente a usuários
