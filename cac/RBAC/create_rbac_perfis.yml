@@ -1,0 +1,115 @@
+---
+# Playbook: cria organizações e perfis RBAC no AAP 2.7 via Platform Gateway.
+#
+# Pré-requisitos:
+#   ansible-galaxy collection install -r requirements.yml
+#   cp vars/aap_auth.yml.example vars/aap_auth.yml   # e preencher token
+#
+# Execução:
+#   ansible-playbook create_rbac_perfis.yml
+#
+# Auth por variáveis de ambiente (sem aap_auth.yml):
+#   export AAP_HOSTNAME='https://...'
+#   export AAP_TOKEN='...'
+#   ansible-playbook create_rbac_perfis.yml
+
+- name: Criar organizações e perfis RBAC no Ansible Automation Platform
+  hosts: localhost
+  connection: ansible.platform.http
+  gather_facts: false
+
+  vars_files:
+    - vars/rbac.yml
+
+  module_defaults:
+    group/ansible.platform.gateway:
+      aap_hostname: "{{ aap_hostname }}"
+      aap_token: "{{ aap_token }}"
+      aap_validate_certs: "{{ aap_validate_certs }}"
+
+  pre_tasks:
+    - name: Verificar se vars/aap_auth.yml existe
+      ansible.builtin.stat:
+        path: "{{ playbook_dir }}/vars/aap_auth.yml"
+      register: aap_auth_file
+
+    - name: Carregar credenciais do Gateway (arquivo opcional)
+      ansible.builtin.include_vars:
+        file: vars/aap_auth.yml
+      when: aap_auth_file.stat.exists
+
+    - name: Resolver autenticação (arquivo, vars ou ambiente)
+      ansible.builtin.set_fact:
+        aap_hostname: "{{ aap_hostname | default(lookup('env', 'AAP_HOSTNAME'), true) }}"
+        aap_token: "{{ aap_token | default(lookup('env', 'AAP_TOKEN'), true) }}"
+        aap_validate_certs: "{{ aap_validate_certs | default(lookup('env', 'AAP_VALIDATE_CERTS') | default(true, true), true) }}"
+
+    - name: Validar parâmetros de autenticação
+      ansible.builtin.assert:
+        that:
+          - aap_hostname | default('') | length > 0
+          - aap_token | default('') | length > 0
+        fail_msg: >-
+          Defina aap_hostname e aap_token em vars/aap_auth.yml
+          (veja vars/aap_auth.yml.example) ou via AAP_HOSTNAME / AAP_TOKEN.
+
+  tasks:
+    - name: Garantir organizações
+      ansible.platform.organization:
+        name: "{{ item.name }}"
+        description: "{{ item.description | default(omit) }}"
+        state: present
+      loop: "{{ aap_organizations }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Garantir role definitions (perfis RBAC)
+      ansible.platform.role_definition:
+        name: "{{ item.name }}"
+        description: "{{ item.description | default(omit) }}"
+        content_type: "{{ item.content_type }}"
+        permissions: "{{ item.permissions }}"
+        state: present
+      loop: "{{ aap_role_definitions }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Garantir times por organização e perfil
+      ansible.platform.team:
+        name: "{{ item.1.name }}"
+        description: "{{ item.1.description }} ({{ item.0.name }})"
+        organization: "{{ item.0.name }}"
+        state: present
+      loop: "{{ aap_organizations | product(aap_teams) | list }}"
+      loop_control:
+        label: "{{ item.0.name }}/{{ item.1.name }}"
+      register: team_results
+
+    - name: Atribuir perfis RBAC aos times em cada organização
+      ansible.platform.role_team_assignment:
+        role_definition: "{{ item.item.1.role_definition }}"
+        team: "{{ item.team.id }}"
+        assignment_objects:
+          - name: "{{ item.item.0.name }}"
+            type: organizations
+        state: present
+      loop: "{{ team_results.results }}"
+      loop_control:
+        label: "{{ item.item.0.name }}/{{ item.item.1.name }} → {{ item.item.1.role_definition }}"
+      when:
+        - item.team is defined
+        - item.team.id is defined
+
+    - name: Resumo
+      ansible.builtin.debug:
+        msg:
+          - "Organizações: {{ aap_organizations | map(attribute='name') | list }}"
+          - "Perfis RBAC: {{ aap_role_definitions | map(attribute='name') | list }}"
+          - "Times criados/atualizados: {{ team_results.results | length }}"
+          - >-
+            Adicione usuários aos times Admin, Operador ou Desenvolvedor
+            de cada organização para conceder o perfil correspondente.
+          - >-
+            Acesso platform-wide (superusuário) continua sendo o papel
+            gerenciado 'Platform Admin', atribuído diretamente a usuários
+            — não pode ser atribuído a times.
