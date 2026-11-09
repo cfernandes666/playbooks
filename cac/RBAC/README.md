@@ -1,40 +1,46 @@
 # create_rbac_perfis.yml
 
-Playbook para criar **organizações**, **times** (Gateway) e **perfis RBAC**
-customizados (Controller) no Ansible Automation Platform 2.7.
+Playbook para criar **organizações** e **times** (Gateway) e atribuir
+**roles gerenciadas** do Controller no Ansible Automation Platform 2.7.
 
-No AAP 2.7 as permissões `awx.*` (credential, inventory, project, templates)
-existem na API do **Controller**, não no Gateway. Por isso o playbook:
+## Por que roles gerenciadas (e não customizadas)?
 
-1. Cria organizações e times via `ansible.platform` (Gateway)
-2. Cria/atualiza role definitions customizadas em `/api/controller/v2/role_definitions/`
-3. Atribui cada perfil ao time correspondente em `/api/controller/v2/role_team_assignments/`
+Neste ambiente:
+
+1. O **Gateway** só conhece permissões `shared.*` (org/team).
+2. As permissões `awx.*` (credential, inventory, project, templates) existem no **Controller**.
+3. Criar uma RoleDefinition customizada com `awx.*` no Controller falha com:
+
+   ```text
+   Failed to sync resource to resource server
+   ```
+
+   O Controller tenta fazer reverse-sync da role para o Gateway, e o Gateway
+   rejeita porque não tem esses `api_slug`s.
+
+Enquanto a sync de permissões remotas Gateway↔Controller não estiver completa,
+o playbook atribui **roles gerenciadas org-scoped** já existentes no Controller.
 
 ---
 
 ## Pré-requisitos
-
-1. Instalar a collection:
 
 ```bash
 cd cac/RBAC/
 ansible-galaxy collection install -r requirements.yml
 ```
 
-2. Ter um token OAuth2 do Gateway com permissão para gerenciar organizações,
-   times e roles do Controller.
+Token OAuth2 do Gateway com permissão para gerenciar orgs, times e assignments.
 
 ---
 
 ## Autenticação
 
-### Opção 1 — arquivo de variáveis
+### Arquivo
 
 ```bash
 cp vars/aap_auth.yml.example vars/aap_auth.yml
 ```
-
-Edite `vars/aap_auth.yml` e preencha:
 
 ```yaml
 aap_hostname: "https://automation-gateway-aap.apps.exemplo.local"
@@ -42,27 +48,20 @@ aap_token: "<TOKEN_OAUTH2_DO_GATEWAY>"
 aap_validate_certs: true
 ```
 
-> Não versionar `vars/aap_auth.yml` com o token real.
-
-### Opção 2 — variáveis de ambiente
+### Ambiente
 
 ```bash
-export AAP_HOSTNAME='https://automation-gateway-aap.apps.exemplo.local'
-export AAP_TOKEN='<TOKEN_OAUTH2_DO_GATEWAY>'
-export AAP_VALIDATE_CERTS='true'   # opcional
+export AAP_HOSTNAME='https://...'
+export AAP_TOKEN='...'
+export AAP_VALIDATE_CERTS='true'
 ```
 
 ---
 
-## Configuração do RBAC
-
-As organizações, perfis e times ficam em `vars/rbac.yml`.
-
-Recursos no escopo dos perfis: **CREDENTIAL**, **INVENTORY**, **PROJECT**, **TEMPLATES**.
+## Configuração (`vars/rbac.yml`)
 
 ### Organizações e times
 
-Cada organização define seus **domínios** (`teams`) e **papéis** (`roles`).
 O playbook cria um time `{domínio}-{papel}` por combinação (ex.: `BD-Administrador`).
 
 | Organização | Domínios | Papéis |
@@ -71,17 +70,21 @@ O playbook cria um time `{domínio}-{papel}` por combinação (ex.: `BD-Administ
 | **PRODUÇÃO** | BD, Multiplataforma, Mainframe, Observabilidade, Atendimento | Suporte, Operador, Desenvolvedor |
 | **REDES** | DNS, ACL, Firewall, Balancer | Suporte, Operador, Desenvolvedor |
 
-### Perfis (role definitions no Controller)
+### Perfis → roles gerenciadas (Controller)
 
-| Perfil | Permissões |
+| Perfil | Roles gerenciadas atribuídas |
 |---|---|
-| **Administrador** | Acesso total aos recursos da organização |
-| **Suporte** | Leitura e execução (suporte funcional) |
-| **Operador** | Criação, leitura, atualização e execução (contas de serviço; sem delete) |
-| **Auditor** | Somente leitura (auditoria; perfil disponível, sem times nas orgs acima) |
-| **Desenvolvedor** | Credenciais/inventário: leitura e uso · Projetos: leitura, uso e atualização · Templates: leitura, atualização e execução (criar JT exige project+inventory admin; WF tem `add`) |
+| **Administrador** | `Organization Admin` |
+| **Suporte** | `Organization Execute` |
+| **Operador** | Credential / Inventory / Project / JobTemplate / WorkflowJobTemplate **Admin** |
+| **Auditor** | `Organization Audit` |
+| **Desenvolvedor** | `Organization Execute` + Project / JobTemplate / WorkflowJobTemplate **Admin** |
 
-Ajuste `vars/rbac.yml` antes de executar se precisar de outras orgs, permissões ou times.
+Limitações em relação a um modelo 100% customizado:
+
+- **Suporte** não ganha `use` de credential/inventory (só execute de templates).
+- **Operador/Desenvolvedor** herdam **delete** das roles `* Admin`.
+- Não existe `awx.add_jobtemplate`; criar JT exige admin de project+inventory.
 
 ---
 
@@ -92,42 +95,30 @@ cd cac/RBAC/
 ansible-playbook create_rbac_perfis.yml
 ```
 
-Ou só com variáveis de ambiente:
-
-```bash
-export AAP_HOSTNAME='https://...'
-export AAP_TOKEN='...'
-ansible-playbook create_rbac_perfis.yml
-```
-
-O playbook é idempotente (`state: present`): pode ser reexecutado após alterar `vars/rbac.yml`.
+Idempotente: pode reexecutar após alterar `vars/rbac.yml`.
 
 ---
 
 ## O que o playbook faz
 
-1. Expande a matriz organização × domínio × papel a partir de `aap_organizations`
-2. Cria/atualiza as organizações no Gateway
-3. Cria/atualiza os times `{domínio}-{papel}` no Gateway
-4. Cria/atualiza as role definitions customizadas no Controller
-5. Aguarda sync Gateway→Controller e resolve IDs de orgs/times no Controller
-6. Atribui o perfil RBAC correspondente a cada time, no escopo da organização
-7. Exibe um resumo ao final
+1. Expande organização × domínio × papel
+2. Cria/atualiza organizações e times no Gateway
+3. Resolve roles gerenciadas, orgs e times no Controller
+4. Atribui cada managed role do perfil ao time, no escopo da organização
+5. Exibe um resumo
 
 ---
 
 ## Depois de executar
 
-Adicione usuários aos times `{domínio}-{papel}` de cada organização
-(ex.: `BD-Administrador`, `DNS-Suporte`) para conceder o perfil correspondente.
+Adicione usuários aos times `{domínio}-{papel}` (ex.: `BD-Administrador`).
 
-Acesso platform-wide (superusuário) usa o papel gerenciado **Platform Admin**,
-atribuído diretamente a usuários — não a times.
+Acesso platform-wide continua sendo **Platform Admin** (usuário, não time).
 
-### Conferir no Controller
+### Conferir assignments
 
 ```bash
 curl -sk -H "Authorization: Bearer $AAP_TOKEN" \
-  "$AAP_HOSTNAME/api/controller/v2/role_definitions/?search=Administrador" \
-  | jq '.results[] | {name, content_type, permissions}'
+  "$AAP_HOSTNAME/api/controller/v2/role_team_assignments/?page_size=5" \
+  | jq '.results[] | {role: .summary_fields.role_definition.name, team: .summary_fields.team.name}'
 ```

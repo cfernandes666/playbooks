@@ -1,10 +1,14 @@
 ---
-# Playbook: cria organizações, times (Gateway) e perfis RBAC customizados (Controller).
+# Playbook: cria organizações/times (Gateway) e atribui roles gerenciadas (Controller).
 #
-# No AAP 2.7 as permissões awx.* (credential, inventory, project, templates)
-# existem na API do Controller — não no Gateway. Por isso:
+# No AAP 2.7:
 #   - organizações e times → ansible.platform (Gateway)
-#   - role definitions + assignments → /api/controller/v2/ (via Gateway URL)
+#   - assignments de roles com awx.* → /api/controller/v2/role_team_assignments/
+#
+# Roles customizadas com permissões awx.* falham neste ambiente
+# ("Failed to sync resource to resource server"): o Controller não consegue
+# reverse-sync da RoleDefinition para o Gateway. Por isso o playbook atribui
+# roles gerenciadas org-scoped já existentes no Controller.
 #
 # Pré-requisitos:
 #   ansible-galaxy collection install -r requirements.yml
@@ -18,7 +22,7 @@
 #   export AAP_TOKEN='...'
 #   ansible-playbook create_rbac_perfis.yml
 
-- name: Criar organizações e perfis RBAC no Ansible Automation Platform
+- name: Criar organizações e atribuir perfis RBAC no Ansible Automation Platform
   hosts: localhost
   connection: ansible.platform.http
   gather_facts: false
@@ -65,6 +69,13 @@
           Authorization: "Bearer {{ aap_token }}"
           Content-Type: application/json
 
+    - name: Validar que todos os papéis das orgs existem em aap_role_profiles
+      ansible.builtin.assert:
+        that:
+          - item in aap_role_profiles
+        fail_msg: "Papel '{{ item }}' não definido em aap_role_profiles"
+      loop: "{{ aap_organizations | map(attribute='roles') | flatten | unique }}"
+
     - name: Expandir matriz de times (organização × domínio × papel)
       ansible.builtin.set_fact:
         aap_team_matrix: >-
@@ -76,13 +87,30 @@
                       'organization': org.name,
                       'name': team ~ '-' ~ role,
                       'domain': team,
-                      'role_definition': role,
+                      'profile': role,
+                      'managed_roles': aap_role_profiles[role].managed_roles,
                       'description': 'Time ' ~ team ~ ' com perfil ' ~ role
                     }) -%}
               {%- endfor -%}
             {%- endfor -%}
           {%- endfor -%}
           {{ ns.teams }}
+
+    - name: Expandir matriz de assignments (time × managed role)
+      ansible.builtin.set_fact:
+        aap_assignment_matrix: >-
+          {%- set ns = namespace(rows=[]) -%}
+          {%- for team in aap_team_matrix -%}
+            {%- for managed_role in team.managed_roles -%}
+              {%- set _ = ns.rows.append({
+                    'organization': team.organization,
+                    'team': team.name,
+                    'profile': team.profile,
+                    'managed_role': managed_role
+                  }) -%}
+            {%- endfor -%}
+          {%- endfor -%}
+          {{ ns.rows }}
 
   tasks:
     - name: Garantir organizações (Gateway)
@@ -105,124 +133,39 @@
         label: "{{ item.organization }}/{{ item.name }}"
       register: team_results
 
-    - name: Buscar role definitions no Controller por nome
+    - name: Buscar roles gerenciadas no Controller
       ansible.builtin.uri:
-        url: "{{ aap_controller_api }}/role_definitions/?name={{ item.name | urlencode }}"
+        url: "{{ aap_controller_api }}/role_definitions/?name={{ item | urlencode }}"
         method: GET
         headers: "{{ aap_api_headers }}"
         validate_certs: "{{ aap_validate_certs | bool }}"
         status_code: [200]
-      loop: "{{ aap_role_definitions }}"
+      loop: "{{ aap_role_profiles.values() | map(attribute='managed_roles') | flatten | unique }}"
       loop_control:
-        label: "{{ item.name }}"
+        label: "{{ item }}"
       register: controller_rd_lookup
 
-    - name: Criar role definitions ausentes no Controller
-      ansible.builtin.uri:
-        url: "{{ aap_controller_api }}/role_definitions/"
-        method: POST
-        headers: "{{ aap_api_headers }}"
-        validate_certs: "{{ aap_validate_certs | bool }}"
-        status_code: [201, 400, 403]
-        body_format: json
-        body:
-          name: "{{ item.item.name }}"
-          description: "{{ item.item.description | default('') }}"
-          content_type: "{{ item.item.content_type }}"
-          permissions: "{{ item.item.permissions }}"
-      loop: "{{ controller_rd_lookup.results }}"
-      loop_control:
-        label: "{{ item.item.name }}"
-      when: >-
-        (item.json.results
-         | selectattr('name', 'equalto', item.item.name)
-         | list | length) == 0
-      register: controller_rd_created
-
-    - name: Falhar com detalhe se a criação de role definition for rejeitada
-      ansible.builtin.fail:
-        msg: >-
-          Controller rejeitou a role definition '{{ item.item.item.name }}'
-          (HTTP {{ item.status }}): {{ item.json | default(item.msg) }}
-      loop: "{{ controller_rd_created.results }}"
-      loop_control:
-        label: "{{ item.item.item.name | default('skipped') }}"
-      when:
-        - not (item.skipped | default(false))
-        - item.status | default(0) != 201
-
-    - name: Atualizar role definitions existentes no Controller
-      ansible.builtin.uri:
-        url: "{{ aap_controller_api }}/role_definitions/{{ (item.json.results | selectattr('name', 'equalto', item.item.name) | first).id }}/"
-        method: PATCH
-        headers: "{{ aap_api_headers }}"
-        validate_certs: "{{ aap_validate_certs | bool }}"
-        status_code: [200, 400, 403]
-        body_format: json
-        body:
-          description: "{{ item.item.description | default('') }}"
-          permissions: "{{ item.item.permissions }}"
-      loop: "{{ controller_rd_lookup.results }}"
-      loop_control:
-        label: "{{ item.item.name }}"
-      when:
-        - >-
-          (item.json.results
-           | selectattr('name', 'equalto', item.item.name)
-           | list | length) > 0
-        - >-
-          ((item.json.results | selectattr('name', 'equalto', item.item.name) | first).permissions | sort)
-          != (item.item.permissions | sort)
-      register: controller_rd_updated
-
-    - name: Falhar com detalhe se a atualização de role definition for rejeitada
-      ansible.builtin.fail:
-        msg: >-
-          Controller rejeitou o update da role definition '{{ item.item.item.name }}'
-          (HTTP {{ item.status }}): {{ item.json | default(item.msg) }}
-      loop: "{{ controller_rd_updated.results }}"
-      loop_control:
-        label: "{{ item.item.item.name | default('skipped') }}"
-      when:
-        - not (item.skipped | default(false))
-        - item.status | default(0) != 200
-
-    - name: Reindexar role definitions no Controller
-      ansible.builtin.uri:
-        url: "{{ aap_controller_api }}/role_definitions/?name={{ item.name | urlencode }}"
-        method: GET
-        headers: "{{ aap_api_headers }}"
-        validate_certs: "{{ aap_validate_certs | bool }}"
-        status_code: [200]
-      loop: "{{ aap_role_definitions }}"
-      loop_control:
-        label: "{{ item.name }}"
-      register: controller_rd_reindex
-
-    - name: Montar mapa nome → role definition
+    - name: Montar mapa nome → role definition gerenciada
       ansible.builtin.set_fact:
         controller_rd_by_name: >-
           {%- set ns = namespace(d={}) -%}
-          {%- for r in controller_rd_reindex.results -%}
+          {%- for r in controller_rd_lookup.results -%}
             {%- set matches = r.json.results
-                 | selectattr('name', 'equalto', r.item.name) | list -%}
+                 | selectattr('name', 'equalto', r.item) | list -%}
             {%- if matches | length > 0 -%}
-              {%- set _ = ns.d.update({r.item.name: matches[0]}) -%}
+              {%- set _ = ns.d.update({r.item: matches[0]}) -%}
             {%- endif -%}
           {%- endfor -%}
           {{ ns.d }}
 
-    - name: Validar que todos os perfis existem no Controller
+    - name: Validar que todas as roles gerenciadas existem no Controller
       ansible.builtin.assert:
         that:
-          - item.name in controller_rd_by_name
+          - item in controller_rd_by_name
         fail_msg: >-
-          Role definition '{{ item.name }}' não encontrada no Controller
-          após create/update. Verifique se as permissões awx.* são
-          aceitas em /api/controller/v2/role_definitions/.
-      loop: "{{ aap_role_definitions }}"
-      loop_control:
-        label: "{{ item.name }}"
+          Role gerenciada '{{ item }}' não encontrada em
+          {{ aap_controller_api }}/role_definitions/
+      loop: "{{ aap_role_profiles.values() | map(attribute='managed_roles') | flatten | unique }}"
 
     - name: Resolver organizações no Controller
       ansible.builtin.uri:
@@ -267,47 +210,71 @@
       delay: 3
       until: controller_teams.json.count | default(0) > 0
 
+    - name: Indexar times do Controller por org/nome
+      ansible.builtin.set_fact:
+        controller_team_by_key: >-
+          {%- set ns = namespace(d={}) -%}
+          {%- for r in controller_teams.results -%}
+            {%- set key = r.item.organization ~ '/' ~ r.item.name -%}
+            {%- if r.json.count | default(0) > 0 -%}
+              {%- set _ = ns.d.update({key: r.json.results[0]}) -%}
+            {%- endif -%}
+          {%- endfor -%}
+          {{ ns.d }}
+
     - name: Verificar assignments existentes no Controller
       ansible.builtin.uri:
-        url: "{{ aap_controller_api }}/role_team_assignments/?role_definition={{ controller_rd_by_name[item.item.role_definition].id }}&team={{ item.json.results[0].id }}&object_id={{ controller_org_by_name[item.item.organization].id }}"
+        url: "{{ aap_controller_api }}/role_team_assignments/?role_definition={{ controller_rd_by_name[item.managed_role].id }}&team={{ controller_team_by_key[item.organization ~ '/' ~ item.team].id }}&object_id={{ controller_org_by_name[item.organization].id }}"
         method: GET
         headers: "{{ aap_api_headers }}"
         validate_certs: "{{ aap_validate_certs | bool }}"
         status_code: [200]
-      loop: "{{ controller_teams.results }}"
+      loop: "{{ aap_assignment_matrix }}"
       loop_control:
-        label: "{{ item.item.organization }}/{{ item.item.name }} → {{ item.item.role_definition }}"
+        label: "{{ item.organization }}/{{ item.team }} → {{ item.managed_role }}"
       register: controller_assignments_check
-      when:
-        - item.json is defined
-        - item.json.count | default(0) > 0
 
-    - name: Atribuir perfis RBAC aos times no Controller
+    - name: Atribuir roles gerenciadas aos times no Controller
       ansible.builtin.uri:
         url: "{{ aap_controller_api }}/role_team_assignments/"
         method: POST
         headers: "{{ aap_api_headers }}"
         validate_certs: "{{ aap_validate_certs | bool }}"
-        status_code: [201]
+        status_code: [201, 400, 403]
         body_format: json
         body:
-          role_definition: "{{ controller_rd_by_name[item.item.item.role_definition].id }}"
-          team: "{{ item.item.json.results[0].id }}"
-          object_id: "{{ controller_org_by_name[item.item.item.organization].id | string }}"
+          role_definition: "{{ controller_rd_by_name[item.item.managed_role].id }}"
+          team: "{{ controller_team_by_key[item.item.organization ~ '/' ~ item.item.team].id }}"
+          object_id: "{{ controller_org_by_name[item.item.organization].id | string }}"
       loop: "{{ controller_assignments_check.results }}"
       loop_control:
-        label: "{{ item.item.item.organization }}/{{ item.item.item.name }} → {{ item.item.item.role_definition }}"
+        label: "{{ item.item.organization }}/{{ item.item.team }} → {{ item.item.managed_role }}"
       when:
         - not (item.skipped | default(false))
         - item.json.count | default(1) == 0
       register: controller_assignments_created
 
+    - name: Falhar com detalhe se o assignment for rejeitado
+      ansible.builtin.fail:
+        msg: >-
+          Controller rejeitou assignment
+          {{ item.item.item.organization }}/{{ item.item.item.team }}
+          → {{ item.item.item.managed_role }}
+          (HTTP {{ item.status }}): {{ item.json | default(item.msg) }}
+      loop: "{{ controller_assignments_created.results }}"
+      loop_control:
+        label: "{{ item.item.item.organization | default('skipped') }}/{{ item.item.item.team | default('') }} → {{ item.item.item.managed_role | default('') }}"
+      when:
+        - not (item.skipped | default(false))
+        - item.status | default(0) != 201
+
     - name: Resumo
       ansible.builtin.debug:
         msg:
           - "Organizações (Gateway): {{ aap_organizations | map(attribute='name') | list }}"
-          - "Perfis RBAC (Controller): {{ aap_role_definitions | map(attribute='name') | list }}"
+          - "Perfis: {{ aap_role_profiles.keys() | list }}"
           - "Times criados/atualizados: {{ team_results.results | length }}"
+          - "Assignments previstos: {{ aap_assignment_matrix | length }}"
           - >-
             Assignments novos:
             {{ controller_assignments_created.results
@@ -319,6 +286,6 @@
             (ex.: BD-Administrador, DNS-Suporte) de cada organização
             para conceder o perfil correspondente.
           - >-
-            Acesso platform-wide (superusuário) continua sendo o papel
-            gerenciado 'Platform Admin', atribuído diretamente a usuários
-            — não pode ser atribuído a times.
+            Roles customizadas com awx.* não são criadas neste playbook:
+            o Controller falha o reverse-sync para o Gateway
+            ('Failed to sync resource to resource server').
