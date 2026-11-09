@@ -18,8 +18,8 @@
   connection: ansible.platform.http
   gather_facts: false
 
-  vars_files:
-    - vars/rbac.yml
+ # vars_files:
+ #   - vars/rbac.yml
 
   module_defaults:
     group/ansible.platform.gateway:
