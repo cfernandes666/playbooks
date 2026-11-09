@@ -1,0 +1,85 @@
+---
+# Playbook: cria organizações e times no AAP 2.7 via Platform Gateway.
+# Atribuição de roles aos times fica para uma etapa posterior.
+#
+# Pré-requisitos:
+#   ansible-galaxy collection install -r requirements.yml
+#   cp vars/aap_auth.yml.example vars/aap_auth.yml   # e preencher token
+#
+# Execução:
+#   ansible-playbook create_orgs_teams.yml
+#
+# Auth por variáveis de ambiente (sem aap_auth.yml):
+#   export AAP_HOSTNAME='https://...'
+#   export AAP_TOKEN='...'
+#   ansible-playbook create_orgs_teams.yml
+
+- name: Criar organizações e times no Ansible Automation Platform
+  hosts: localhost
+  connection: ansible.platform.http
+  gather_facts: false
+
+  vars_files:
+    - vars/rbac.yml
+
+  module_defaults:
+    group/ansible.platform.gateway:
+      aap_hostname: "{{ aap_hostname }}"
+      aap_token: "{{ aap_token }}"
+      aap_validate_certs: "{{ aap_validate_certs }}"
+
+  pre_tasks:
+    - name: Verificar se vars/aap_auth.yml existe
+      ansible.builtin.stat:
+        path: "{{ playbook_dir }}/vars/aap_auth.yml"
+      register: aap_auth_file
+
+    - name: Carregar credenciais do Gateway (arquivo opcional)
+      ansible.builtin.include_vars:
+        file: vars/aap_auth.yml
+      when: aap_auth_file.stat.exists
+
+    - name: Resolver autenticação (arquivo, vars ou ambiente)
+      ansible.builtin.set_fact:
+        aap_hostname: "{{ aap_hostname | default(lookup('env', 'AAP_HOSTNAME'), true) }}"
+        aap_token: "{{ aap_token | default(lookup('env', 'AAP_TOKEN'), true) }}"
+        aap_validate_certs: "{{ aap_validate_certs | default(lookup('env', 'AAP_VALIDATE_CERTS') | default(true, true), true) }}"
+
+    - name: Validar parâmetros de autenticação
+      ansible.builtin.assert:
+        that:
+          - aap_hostname | default('') | length > 0
+          - aap_token | default('') | length > 0
+        fail_msg: >-
+          Defina aap_hostname e aap_token em vars/aap_auth.yml
+          (veja vars/aap_auth.yml.example) ou via AAP_HOSTNAME / AAP_TOKEN.
+
+  tasks:
+    - name: Garantir organizações
+      ansible.platform.organization:
+        name: "{{ item.name }}"
+        description: "{{ item.description | default(omit) }}"
+        state: present
+      loop: "{{ aap_organizations }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Garantir times por organização
+      ansible.platform.team:
+        name: "{{ item.1 }}"
+        description: "Time {{ item.1 }} ({{ item.0.name }})"
+        organization: "{{ item.0.name }}"
+        state: present
+      loop: "{{ aap_organizations | subelements('teams') }}"
+      loop_control:
+        label: "{{ item.0.name }}/{{ item.1 }}"
+      register: team_results
+
+    - name: Resumo
+      ansible.builtin.debug:
+        msg:
+          - "Organizações: {{ aap_organizations | map(attribute='name') | list }}"
+          - "Times criados/atualizados: {{ team_results.results | length }}"
+          - >-
+            Nenhuma role foi atribuída aos times nesta etapa.
+            Atribuições de permissões podem ser feitas em um playbook posterior.
