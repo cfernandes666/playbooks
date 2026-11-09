@@ -1,7 +1,14 @@
 # create_rbac_perfis.yml
 
-Playbook para criar **organizações**, **perfis RBAC** (role definitions) e **times**
-no Ansible Automation Platform 2.7 via Platform Gateway.
+Playbook para criar **organizações**, **times** (Gateway) e **perfis RBAC**
+customizados (Controller) no Ansible Automation Platform 2.7.
+
+No AAP 2.7 as permissões `awx.*` (credential, inventory, project, templates)
+existem na API do **Controller**, não no Gateway. Por isso o playbook:
+
+1. Cria organizações e times via `ansible.platform` (Gateway)
+2. Cria/atualiza role definitions customizadas em `/api/controller/v2/role_definitions/`
+3. Atribui cada perfil ao time correspondente em `/api/controller/v2/role_team_assignments/`
 
 ---
 
@@ -10,11 +17,12 @@ no Ansible Automation Platform 2.7 via Platform Gateway.
 1. Instalar a collection:
 
 ```bash
-cd playbooks/
+cd cac/RBAC/
 ansible-galaxy collection install -r requirements.yml
 ```
 
-2. Ter um token OAuth2 do Gateway com permissão para gerenciar organizações, roles e times.
+2. Ter um token OAuth2 do Gateway com permissão para gerenciar organizações,
+   times e roles do Controller.
 
 ---
 
@@ -63,15 +71,15 @@ O playbook cria um time `{domínio}-{papel}` por combinação (ex.: `BD-Administ
 | **PRODUÇÃO** | BD, Multiplataforma, Mainframe, Observabilidade, Atendimento | Suporte, Operador, Desenvolvedor |
 | **REDES** | DNS, ACL, Firewall, Balancer | Suporte, Operador, Desenvolvedor |
 
-### Perfis (role definitions)
+### Perfis (role definitions no Controller)
 
 | Perfil | Permissões |
 |---|---|
-| **Administrador** | Acesso total aos recursos da plataforma |
+| **Administrador** | Acesso total aos recursos da organização |
 | **Suporte** | Leitura e execução (suporte funcional) |
 | **Operador** | Criação, leitura, atualização e execução (contas de serviço; sem delete) |
 | **Auditor** | Somente leitura (auditoria; perfil disponível, sem times nas orgs acima) |
-| **Desenvolvedor** | Credenciais/inventário: leitura e execução · Projetos: leitura, execução e atualização · Templates: criação, leitura, atualização e execução |
+| **Desenvolvedor** | Credenciais/inventário: leitura e uso · Projetos: leitura, uso e atualização · Templates: criação, leitura, atualização e execução |
 
 Ajuste `vars/rbac.yml` antes de executar se precisar de outras orgs, permissões ou times.
 
@@ -80,7 +88,7 @@ Ajuste `vars/rbac.yml` antes de executar se precisar de outras orgs, permissões
 ## Execução
 
 ```bash
-cd playbooks/
+cd cac/RBAC/
 ansible-playbook create_rbac_perfis.yml
 ```
 
@@ -99,11 +107,12 @@ O playbook é idempotente (`state: present`): pode ser reexecutado após alterar
 ## O que o playbook faz
 
 1. Expande a matriz organização × domínio × papel a partir de `aap_organizations`
-2. Cria/atualiza as organizações
-3. Cria/atualiza as role definitions definidas em `aap_role_definitions`
-4. Cria os times `{domínio}-{papel}` em cada organização
-5. Atribui o perfil RBAC correspondente a cada time, no escopo da organização
-6. Exibe um resumo ao final
+2. Cria/atualiza as organizações no Gateway
+3. Cria/atualiza os times `{domínio}-{papel}` no Gateway
+4. Cria/atualiza as role definitions customizadas no Controller
+5. Aguarda sync Gateway→Controller e resolve IDs de orgs/times no Controller
+6. Atribui o perfil RBAC correspondente a cada time, no escopo da organização
+7. Exibe um resumo ao final
 
 ---
 
@@ -114,3 +123,11 @@ Adicione usuários aos times `{domínio}-{papel}` de cada organização
 
 Acesso platform-wide (superusuário) usa o papel gerenciado **Platform Admin**,
 atribuído diretamente a usuários — não a times.
+
+### Conferir no Controller
+
+```bash
+curl -sk -H "Authorization: Bearer $AAP_TOKEN" \
+  "$AAP_HOSTNAME/api/controller/v2/role_definitions/?search=Administrador" \
+  | jq '.results[] | {name, content_type, permissions}'
+```

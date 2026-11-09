@@ -42,9 +42,10 @@ aap_organizations:
       - Operador
       - Desenvolvedor
 
-# Perfis RBAC (Role Definitions customizadas)
-# Cada role_definition no AAP 2.7 aplica-se a um único content_type.
-# Os perfis abaixo usam shared.organization para escopo organizacional.
+# Perfis RBAC (Role Definitions customizadas) — criados na API do Controller.
+# No AAP 2.7, permissões awx.* só existem em /api/controller/v2/role_definitions/
+# (o Gateway só conhece shared.*). content_type shared.organization aplica o
+# perfil a todos os recursos da organização.
 aap_role_definitions:
   - name: Administrador
     description: >-
