@@ -24,7 +24,6 @@ aap_role_definitions:
       - awx.delete_credential
       - awx.add_credential
       - awx.use_credential
-      - awx.view_inventory
       - awx.change_inventory
       - awx.delete_inventory
       - awx.add_inventory
@@ -55,7 +54,6 @@ aap_role_definitions:
       - shared.view_organization
       - awx.view_credential
       - awx.use_credential
-      - awx.view_inventory
       - awx.use_inventory
       - awx.view_project
       - awx.use_project
@@ -72,7 +70,6 @@ aap_role_definitions:
       - awx.view_credential
       - awx.change_credential
       - awx.use_credential
-      - awx.view_inventory
       - awx.change_inventory
       - awx.use_inventory
       - awx.update_inventory
@@ -93,7 +90,6 @@ aap_role_definitions:
     permissions:
       - shared.view_organization
       - awx.view_credential
-      - awx.view_inventory
       - awx.view_project
       - awx.view_jobtemplate
       - awx.view_workflowjobtemplate
@@ -107,7 +103,6 @@ aap_role_definitions:
       - shared.view_organization
       - awx.view_credential
       - awx.use_credential
-      - awx.view_inventory
       - awx.use_inventory
       - awx.view_project
       - awx.change_project
