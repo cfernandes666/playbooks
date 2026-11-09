@@ -1,0 +1,90 @@
+---
+# Organizações, times de domínio e papéis por organização.
+# Times criados = {domínio}-{papel} (ex.: BD-Administrador) em cada org.
+# Recursos no escopo: CREDENTIAL, INVENTORY, PROJECT, TEMPLATES.
+aap_organizations:
+  - name: CESTI
+    description: Organização CESTI
+    teams:
+      - BD
+      - Esteira
+      - Multiplataforma
+      - Mainframe
+      - Armazenamento
+    roles:
+      - Administrador
+      - Suporte
+      - Desenvolvedor
+      - Operador
+
+  - name: PRODUÇÃO
+    description: Organização de Produção
+    teams:
+      - BD
+      - Multiplataforma
+      - Mainframe
+      - Observabilidade
+      - Atendimento
+    roles:
+      - Suporte
+      - Operador
+      - Desenvolvedor
+
+  - name: REDES
+    description: Organização de Redes
+    teams:
+      - DNS
+      - ACL
+      - Firewall
+      - Balancer
+    roles:
+      - Suporte
+      - Operador
+      - Desenvolvedor
+
+# Perfis lógicos → roles gerenciadas do Controller (org-scoped).
+#
+# Roles customizadas com awx.* falham neste AAP com:
+#   "Failed to sync resource to resource server"
+# porque o Controller tenta reverse-sync da RoleDefinition para o Gateway,
+# e o Gateway não tem as permissões awx.* registradas.
+#
+# Por isso usamos roles gerenciadas já existentes em
+# /api/controller/v2/role_definitions/ (content_type: shared.organization).
+#
+# Limitações vs. o modelo “ideal”:
+#   - Suporte: Organization Execute não inclui use de credential/inventory
+#   - Operador/Desenvolvedor: roles * Admin incluem delete
+#   - Não existe awx.add_jobtemplate; criar JT exige project+inventory admin
+aap_role_profiles:
+  Administrador:
+    description: Acesso total aos recursos da organização
+    managed_roles:
+      - Organization Admin
+
+  Suporte:
+    description: Leitura e execução de templates (suporte funcional)
+    managed_roles:
+      - Organization Execute
+
+  Operador:
+    description: Admin org-scoped de credenciais, inventário, projetos e templates
+    managed_roles:
+      - Organization Credential Admin
+      - Organization Inventory Admin
+      - Organization Project Admin
+      - Organization JobTemplate Admin
+      - Organization WorkflowJobTemplate Admin
+
+  Auditor:
+    description: Somente leitura (auditoria)
+    managed_roles:
+      - Organization Audit
+
+  Desenvolvedor:
+    description: Execução + admin de projetos/templates (inclui delete nas roles Admin)
+    managed_roles:
+      - Organization Execute
+      - Organization Project Admin
+      - Organization JobTemplate Admin
+      - Organization WorkflowJobTemplate Admin
