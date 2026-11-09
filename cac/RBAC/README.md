@@ -79,7 +79,7 @@ O playbook cria um time `{domínio}-{papel}` por combinação (ex.: `BD-Administ
 | **Suporte** | Leitura e execução (suporte funcional) |
 | **Operador** | Criação, leitura, atualização e execução (contas de serviço; sem delete) |
 | **Auditor** | Somente leitura (auditoria; perfil disponível, sem times nas orgs acima) |
-| **Desenvolvedor** | Credenciais/inventário: leitura e uso · Projetos: leitura, uso e atualização · Templates: criação, leitura, atualização e execução |
+| **Desenvolvedor** | Credenciais/inventário: leitura e uso · Projetos: leitura, uso e atualização · Templates: leitura, atualização e execução (criar JT exige project+inventory admin; WF tem `add`) |
 
 Ajuste `vars/rbac.yml` antes de executar se precisar de outras orgs, permissões ou times.
 
