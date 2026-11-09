@@ -1,0 +1,28 @@
+---
+# Organizações e times no AAP (sem atribuição de roles nesta etapa).
+aap_organizations:
+  - name: CESTI
+    description: Organização CESTI
+    teams:
+      - BD
+      - Esteira
+      - Multiplataforma
+      - Mainframe
+      - Armazenamento
+
+  - name: PRODUÇÃO
+    description: Organização de Produção
+    teams:
+      - BD
+      - Multiplataforma
+      - Mainframe
+      - Observabilidade
+      - Atendimento
+
+  - name: REDES
+    description: Organização de Redes
+    teams:
+      - DNS
+      - ACL
+      - Firewall
+      - Balancer
