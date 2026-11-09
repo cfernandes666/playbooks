@@ -1,4 +1,0 @@
----
-collections:
-  - name: ansible.platform
-    version: ">=2.7.0"
