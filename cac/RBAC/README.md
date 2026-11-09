@@ -1,10 +1,14 @@
-# create_orgs_teams.yml
+# cac/RBAC
 
-Playbook para criar **organizações** e **times** no Ansible Automation Platform 2.7
-via Platform Gateway, usando a collection `ansible.platform` com autenticação por
-**token OAuth2**.
+Playbooks CaC para o Ansible Automation Platform 2.7 via Platform Gateway,
+usando a collection `ansible.platform` com autenticação por **token OAuth2**.
 
-A atribuição de roles/permissões aos times fica para uma etapa posterior.
+| Playbook | Função |
+|---|---|
+| `create_orgs_teams.yml` | Cria organizações e times |
+| `rbac_roles.yaml` | Cria role definitions (perfis RBAC) |
+
+A atribuição de roles aos times fica para uma etapa posterior.
 
 ---
 
@@ -15,7 +19,7 @@ cd cac/RBAC/
 ansible-galaxy collection install -r requirements.yml
 ```
 
-Token OAuth2 do Gateway com permissão para gerenciar organizações e times.
+Token OAuth2 do Gateway com permissão para gerenciar organizações, times e roles.
 
 ---
 
@@ -45,13 +49,25 @@ export AAP_VALIDATE_CERTS='true'   # opcional
 
 ---
 
-## Configuração (`vars/rbac.yml`)
+## Configuração
+
+### Organizações e times (`vars/rbac.yml`)
 
 | Organização | Times |
 |---|---|
 | **CESTI** | BD, Esteira, Multiplataforma, Mainframe, Armazenamento |
 | **PRODUÇÃO** | BD, Multiplataforma, Mainframe, Observabilidade, Atendimento |
 | **REDES** | DNS, ACL, Firewall, Balancer |
+
+### Roles (`vars/rbac_roles.yml`)
+
+| Role | Escopo |
+|---|---|
+| **Administrador** | Acesso total à organização |
+| **Suporte** | Leitura e execução em toda a organização |
+| **Operador** | Leitura, atualização e execução na organização |
+| **Auditor** | Somente leitura na organização |
+| **Desenvolvedor** | Leitura/execução em credenciais e inventário; atualização de projetos; execução de templates |
 
 ---
 
@@ -60,6 +76,7 @@ export AAP_VALIDATE_CERTS='true'   # opcional
 ```bash
 cd cac/RBAC/
 ansible-playbook create_orgs_teams.yml
+ansible-playbook rbac_roles.yaml
 ```
 
 Ou só com variáveis de ambiente:
@@ -68,6 +85,7 @@ Ou só com variáveis de ambiente:
 export AAP_HOSTNAME='https://...'
 export AAP_TOKEN='...'
 ansible-playbook create_orgs_teams.yml
+ansible-playbook rbac_roles.yaml
 ```
 
-O playbook é idempotente (`state: present`): pode ser reexecutado após alterar `vars/rbac.yml`.
+Os playbooks são idempotentes (`state: present`).

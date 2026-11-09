@@ -8,6 +8,6 @@ Aqui ficam playbooks de referência e demonstração para uso com Ansible / Ansi
 
 | Pasta | Descrição |
 |-------|-----------|
-| [`cac/RBAC/`](cac/RBAC/) | Criação de organizações e times no AAP 2.7 (roles em etapa posterior) |
+| [`cac/RBAC/`](cac/RBAC/) | Organizações, times e role definitions no AAP 2.7 |
 
 Consulte o README de cada exemplo para pré-requisitos e instruções de execução.
