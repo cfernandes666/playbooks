@@ -42,132 +42,49 @@ aap_organizations:
       - Operador
       - Desenvolvedor
 
-# Perfis RBAC (Role Definitions customizadas) — criados na API do Controller.
-# No AAP 2.7, permissões awx.* só existem em /api/controller/v2/role_definitions/
-# (o Gateway só conhece shared.*). content_type shared.organization aplica o
-# perfil a todos os recursos da organização.
+# Perfis lógicos → roles gerenciadas do Controller (org-scoped).
 #
-# Permissões inválidas em roles org-scoped (não existem no Controller):
-#   - awx.add_jobtemplate (criação de JT exige use/admin de project+inventory)
-#   - awx.view_job / awx.delete_job / awx.view_workflowjob / awx.delete_workflowjob
-aap_role_definitions:
-  - name: Administrador
-    description: >-
-      Acesso total aos recursos da plataforma (credenciais, inventário,
-      projetos e templates).
-    content_type: shared.organization
-    permissions:
-      - shared.view_organization
-      - awx.view_credential
-      - awx.change_credential
-      - awx.delete_credential
-      - awx.add_credential
-      - awx.use_credential
-      - awx.view_inventory
-      - awx.change_inventory
-      - awx.delete_inventory
-      - awx.add_inventory
-      - awx.use_inventory
-      - awx.adhoc_inventory
-      - awx.update_inventory
-      - awx.view_project
-      - awx.change_project
-      - awx.delete_project
-      - awx.add_project
-      - awx.use_project
-      - awx.update_project
-      - awx.view_jobtemplate
-      - awx.change_jobtemplate
-      - awx.delete_jobtemplate
-      - awx.execute_jobtemplate
-      - awx.view_workflowjobtemplate
-      - awx.change_workflowjobtemplate
-      - awx.delete_workflowjobtemplate
-      - awx.add_workflowjobtemplate
-      - awx.execute_workflowjobtemplate
-      - awx.approve_workflowjobtemplate
+# Roles customizadas com awx.* falham neste AAP com:
+#   "Failed to sync resource to resource server"
+# porque o Controller tenta reverse-sync da RoleDefinition para o Gateway,
+# e o Gateway não tem as permissões awx.* registradas.
+#
+# Por isso usamos roles gerenciadas já existentes em
+# /api/controller/v2/role_definitions/ (content_type: shared.organization).
+#
+# Limitações vs. o modelo “ideal”:
+#   - Suporte: Organization Execute não inclui use de credential/inventory
+#   - Operador/Desenvolvedor: roles * Admin incluem delete
+#   - Não existe awx.add_jobtemplate; criar JT exige project+inventory admin
+aap_role_profiles:
+  Administrador:
+    description: Acesso total aos recursos da organização
+    managed_roles:
+      - Organization Admin
 
-  - name: Suporte
-    description: >-
-      Acesso de leitura e execução, para suporte a nível funcional à
-      plataforma (credenciais, inventário, projetos e templates).
-    content_type: shared.organization
-    permissions:
-      - shared.view_organization
-      - awx.view_credential
-      - awx.use_credential
-      - awx.view_inventory
-      - awx.use_inventory
-      - awx.view_project
-      - awx.use_project
-      - awx.view_jobtemplate
-      - awx.execute_jobtemplate
-      - awx.view_workflowjobtemplate
-      - awx.execute_workflowjobtemplate
+  Suporte:
+    description: Leitura e execução de templates (suporte funcional)
+    managed_roles:
+      - Organization Execute
 
-  - name: Operador
-    description: >-
-      Acesso de criação, leitura, atualização e execução — destinado a
-      contas de serviço (credenciais, inventário, projetos e workflows;
-      JT sem add — criação via project+inventory).
-    content_type: shared.organization
-    permissions:
-      - shared.view_organization
-      - awx.view_credential
-      - awx.change_credential
-      - awx.add_credential
-      - awx.use_credential
-      - awx.view_inventory
-      - awx.change_inventory
-      - awx.add_inventory
-      - awx.use_inventory
-      - awx.update_inventory
-      - awx.view_project
-      - awx.change_project
-      - awx.add_project
-      - awx.use_project
-      - awx.update_project
-      - awx.view_jobtemplate
-      - awx.change_jobtemplate
-      - awx.execute_jobtemplate
-      - awx.view_workflowjobtemplate
-      - awx.change_workflowjobtemplate
-      - awx.add_workflowjobtemplate
-      - awx.execute_workflowjobtemplate
+  Operador:
+    description: Admin org-scoped de credenciais, inventário, projetos e templates
+    managed_roles:
+      - Organization Credential Admin
+      - Organization Inventory Admin
+      - Organization Project Admin
+      - Organization JobTemplate Admin
+      - Organization WorkflowJobTemplate Admin
 
-  - name: Auditor
-    description: >-
-      Acesso somente de leitura, para função de auditoria (credenciais,
-      inventário, projetos e templates).
-    content_type: shared.organization
-    permissions:
-      - shared.view_organization
-      - awx.view_credential
-      - awx.view_inventory
-      - awx.view_project
-      - awx.view_jobtemplate
-      - awx.view_workflowjobtemplate
+  Auditor:
+    description: Somente leitura (auditoria)
+    managed_roles:
+      - Organization Audit
 
-  - name: Desenvolvedor
-    description: >-
-      Desenvolvedor de automação — leitura e uso em credenciais e inventário;
-      leitura, uso e atualização em projetos; leitura, atualização e execução
-      em JT; criação/atualização/execução em workflows.
-    content_type: shared.organization
-    permissions:
-      - shared.view_organization
-      - awx.view_credential
-      - awx.use_credential
-      - awx.view_inventory
-      - awx.use_inventory
-      - awx.view_project
-      - awx.change_project
-      - awx.use_project
-      - awx.update_project
-      - awx.view_jobtemplate
-      - awx.change_jobtemplate
-      - awx.execute_jobtemplate
-      - awx.view_workflowjobtemplate
-      - awx.change_workflowjobtemplate
-      - awx.add_workflowjobtemplate
-      - awx.execute_workflowjobtemplate
+  Desenvolvedor:
+    description: Execução + admin de projetos/templates (inclui delete nas roles Admin)
+    managed_roles:
+      - Organization Execute
+      - Organization Project Admin
+      - Organization JobTemplate Admin
+      - Organization WorkflowJobTemplate Admin
