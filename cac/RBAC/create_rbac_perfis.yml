@@ -123,7 +123,7 @@
         method: POST
         headers: "{{ aap_api_headers }}"
         validate_certs: "{{ aap_validate_certs | bool }}"
-        status_code: [201]
+        status_code: [201, 400, 403]
         body_format: json
         body:
           name: "{{ item.item.name }}"
@@ -139,13 +139,25 @@
          | list | length) == 0
       register: controller_rd_created
 
+    - name: Falhar com detalhe se a criação de role definition for rejeitada
+      ansible.builtin.fail:
+        msg: >-
+          Controller rejeitou a role definition '{{ item.item.item.name }}'
+          (HTTP {{ item.status }}): {{ item.json | default(item.msg) }}
+      loop: "{{ controller_rd_created.results }}"
+      loop_control:
+        label: "{{ item.item.item.name | default('skipped') }}"
+      when:
+        - not (item.skipped | default(false))
+        - item.status | default(0) != 201
+
     - name: Atualizar role definitions existentes no Controller
       ansible.builtin.uri:
         url: "{{ aap_controller_api }}/role_definitions/{{ (item.json.results | selectattr('name', 'equalto', item.item.name) | first).id }}/"
         method: PATCH
         headers: "{{ aap_api_headers }}"
         validate_certs: "{{ aap_validate_certs | bool }}"
-        status_code: [200]
+        status_code: [200, 400, 403]
         body_format: json
         body:
           description: "{{ item.item.description | default('') }}"
@@ -162,6 +174,18 @@
           ((item.json.results | selectattr('name', 'equalto', item.item.name) | first).permissions | sort)
           != (item.item.permissions | sort)
       register: controller_rd_updated
+
+    - name: Falhar com detalhe se a atualização de role definition for rejeitada
+      ansible.builtin.fail:
+        msg: >-
+          Controller rejeitou o update da role definition '{{ item.item.item.name }}'
+          (HTTP {{ item.status }}): {{ item.json | default(item.msg) }}
+      loop: "{{ controller_rd_updated.results }}"
+      loop_control:
+        label: "{{ item.item.item.name | default('skipped') }}"
+      when:
+        - not (item.skipped | default(false))
+        - item.status | default(0) != 200
 
     - name: Reindexar role definitions no Controller
       ansible.builtin.uri:

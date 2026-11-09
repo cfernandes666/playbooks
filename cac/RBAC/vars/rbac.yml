@@ -46,6 +46,10 @@ aap_organizations:
 # No AAP 2.7, permissões awx.* só existem em /api/controller/v2/role_definitions/
 # (o Gateway só conhece shared.*). content_type shared.organization aplica o
 # perfil a todos os recursos da organização.
+#
+# Permissões inválidas em roles org-scoped (não existem no Controller):
+#   - awx.add_jobtemplate (criação de JT exige use/admin de project+inventory)
+#   - awx.view_job / awx.delete_job / awx.view_workflowjob / awx.delete_workflowjob
 aap_role_definitions:
   - name: Administrador
     description: >-
@@ -75,7 +79,6 @@ aap_role_definitions:
       - awx.view_jobtemplate
       - awx.change_jobtemplate
       - awx.delete_jobtemplate
-      - awx.add_jobtemplate
       - awx.execute_jobtemplate
       - awx.view_workflowjobtemplate
       - awx.change_workflowjobtemplate
@@ -83,10 +86,6 @@ aap_role_definitions:
       - awx.add_workflowjobtemplate
       - awx.execute_workflowjobtemplate
       - awx.approve_workflowjobtemplate
-      - awx.view_job
-      - awx.delete_job
-      - awx.view_workflowjob
-      - awx.delete_workflowjob
 
   - name: Suporte
     description: >-
@@ -105,13 +104,12 @@ aap_role_definitions:
       - awx.execute_jobtemplate
       - awx.view_workflowjobtemplate
       - awx.execute_workflowjobtemplate
-      - awx.view_job
-      - awx.view_workflowjob
 
   - name: Operador
     description: >-
       Acesso de criação, leitura, atualização e execução — destinado a
-      contas de serviço (credenciais, inventário, projetos e templates).
+      contas de serviço (credenciais, inventário, projetos e workflows;
+      JT sem add — criação via project+inventory).
     content_type: shared.organization
     permissions:
       - shared.view_organization
@@ -131,14 +129,11 @@ aap_role_definitions:
       - awx.update_project
       - awx.view_jobtemplate
       - awx.change_jobtemplate
-      - awx.add_jobtemplate
       - awx.execute_jobtemplate
       - awx.view_workflowjobtemplate
       - awx.change_workflowjobtemplate
       - awx.add_workflowjobtemplate
       - awx.execute_workflowjobtemplate
-      - awx.view_job
-      - awx.view_workflowjob
 
   - name: Auditor
     description: >-
@@ -152,14 +147,12 @@ aap_role_definitions:
       - awx.view_project
       - awx.view_jobtemplate
       - awx.view_workflowjobtemplate
-      - awx.view_job
-      - awx.view_workflowjob
 
   - name: Desenvolvedor
     description: >-
-      Desenvolvedor de automação — leitura e execução em credenciais e
-      inventário; leitura, execução e atualização em projetos; criação,
-      leitura, atualização e execução em templates.
+      Desenvolvedor de automação — leitura e uso em credenciais e inventário;
+      leitura, uso e atualização em projetos; leitura, atualização e execução
+      em JT; criação/atualização/execução em workflows.
     content_type: shared.organization
     permissions:
       - shared.view_organization
@@ -173,11 +166,8 @@ aap_role_definitions:
       - awx.update_project
       - awx.view_jobtemplate
       - awx.change_jobtemplate
-      - awx.add_jobtemplate
       - awx.execute_jobtemplate
       - awx.view_workflowjobtemplate
       - awx.change_workflowjobtemplate
       - awx.add_workflowjobtemplate
       - awx.execute_workflowjobtemplate
-      - awx.view_job
-      - awx.view_workflowjob
