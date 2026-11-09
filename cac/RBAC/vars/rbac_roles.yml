@@ -19,7 +19,6 @@ aap_role_definitions:
       - shared.delete_team
       - shared.member_team
       - shared.add_team
-      - awx.view_credential
       - awx.change_credential
       - awx.delete_credential
       - awx.add_credential
@@ -52,7 +51,6 @@ aap_role_definitions:
     content_type: shared.organization
     permissions:
       - shared.view_organization
-      - awx.view_credential
       - awx.use_credential
       - awx.use_inventory
       - awx.view_project
@@ -67,7 +65,6 @@ aap_role_definitions:
     content_type: shared.organization
     permissions:
       - shared.view_organization
-      - awx.view_credential
       - awx.change_credential
       - awx.use_credential
       - awx.change_inventory
@@ -89,7 +86,6 @@ aap_role_definitions:
     content_type: shared.organization
     permissions:
       - shared.view_organization
-      - awx.view_credential
       - awx.view_project
       - awx.view_jobtemplate
       - awx.view_workflowjobtemplate
@@ -101,7 +97,6 @@ aap_role_definitions:
     content_type: shared.organization
     permissions:
       - shared.view_organization
-      - awx.view_credential
       - awx.use_credential
       - awx.use_inventory
       - awx.view_project
