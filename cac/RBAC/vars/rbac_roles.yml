@@ -10,11 +10,6 @@ aap_role_definitions:
     description: Acesso total à organização
     content_type: shared.organization
     permissions:
-      - shared.audit_organization
-      - shared.change_organization
-      - shared.delete_organization
-      - shared.member_organization
-      - shared.view_organization
       - awx.change_jobtemplate
       - awx.delete_jobtemplate
       - awx.execute_jobtemplate
@@ -43,11 +38,6 @@ aap_role_definitions:
       - awx.update_inventory
       - awx.use_inventory
       - awx.view_inventory
-      - shared.add_team
-      - shared.change_team
-      - shared.delete_team
-      - shared.member_team
-      - shared.view_team
       - awx.add_notificationtemplate
       - awx.change_notificationtemplate
       - awx.delete_notificationtemplate
@@ -59,7 +49,6 @@ aap_role_definitions:
     description: Acesso de leitura e execução em toda a organização
     content_type: shared.organization
     permissions:
-      - shared.view_organization
       - awx.use_credential
       - awx.use_inventory
       - awx.view_project
@@ -73,11 +62,6 @@ aap_role_definitions:
     description: Acesso de leitura, atualização e execução na organização
     content_type: shared.organization
     permissions:
-      - shared.audit_organization
-      - shared.change_organization
-      - shared.delete_organization
-      - shared.member_organization
-      - shared.view_organization
       - awx.change_jobtemplate
       - awx.delete_jobtemplate
       - awx.execute_jobtemplate
@@ -87,11 +71,6 @@ aap_role_definitions:
     description: Acesso de leitura na organização
     content_type: shared.organization
     permissions:
-      - shared.audit_organization
-      - shared.change_organization
-      - shared.delete_organization
-      - shared.member_organization
-      - shared.view_organization
       - awx.change_jobtemplate
       - awx.delete_jobtemplate
       - awx.execute_jobtemplate
@@ -103,11 +82,6 @@ aap_role_definitions:
       projetos; execução de templates na organização
     content_type: shared.organization
     permissions:
-      - shared.audit_organization
-      - shared.change_organization
-      - shared.delete_organization
-      - shared.member_organization
-      - shared.view_organization
       - awx.change_jobtemplate
       - awx.delete_jobtemplate
       - awx.execute_jobtemplate
