@@ -50,6 +50,7 @@ aap_role_definitions:
     content_type: shared.organization
     permissions:
       - awx.use_credential
+      - awx.view_credential
       - awx.use_inventory
       - awx.view_project
       - awx.use_project
