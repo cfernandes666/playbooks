@@ -54,7 +54,6 @@ aap_role_definitions:
       - awx.view_notificationtemplate
       - awx.add_executionenvironment
       - awx.change_executionenvironment
-      - awx.delete_executionenvironmen
 
   - name: Suporte
     description: Acesso de leitura e execução em toda a organização
