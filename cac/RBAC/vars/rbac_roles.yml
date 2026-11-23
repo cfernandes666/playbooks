@@ -52,6 +52,7 @@ aap_role_definitions:
       - awx.use_credential
       - awx.view_credential
       - awx.use_inventory
+      - awx.view_inventory
       - awx.view_project
       - awx.use_project
       - awx.view_jobtemplate
